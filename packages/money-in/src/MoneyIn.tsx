@@ -7,7 +7,7 @@ export interface MoneyInProps {
     jsonData: { amount: number; source: string; date: string };
 }
 
-const MoneyIn: React.FC<MoneyInProps> = ({ accessToken, refreshUrl, data }) => {
+const MoneyIn: React.FC<MoneyInProps> = ({ accessToken, refreshUrl, jsonData }) => {
     // const token = useAccessToken({ initialToken: accessToken, refreshUrl });
 
     const token = "test";
@@ -18,11 +18,11 @@ const MoneyIn: React.FC<MoneyInProps> = ({ accessToken, refreshUrl, data }) => {
         <div style={{ border: "1px solid green", padding: "1rem", borderRadius: 8 }}>
             <h3>💰 Money In</h3>
 
-            {data ? (
+            {jsonData ? (
                 <div>
-                    <p>Amount: ${data.jsonData.amount || 0}</p>
-                    <p>Source: {data.jsonData.source}</p>
-                    <p>Date: {data.jsonData.date}</p>
+                    <p>Amount: ${jsonData.amount || 0}</p>
+                    <p>Source: {jsonData.source}</p>
+                    <p>Date: {jsonData.date}</p>
                 </div>
             ) : (
                 <p>No moneyIn data. Token: {accessToken ? 'Valid' : 'Missing'}</p>

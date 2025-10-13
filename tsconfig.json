@@ -12,7 +12,9 @@
     "allowSyntheticDefaultImports": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
+    "emitDeclarationOnly": false,
     "types": ["vite/client"],
+      "rootDir": "src",
     "baseUrl": ".",
     "paths": {
       "@shared-auth/*": ["packages/shared-auth/src/*"],

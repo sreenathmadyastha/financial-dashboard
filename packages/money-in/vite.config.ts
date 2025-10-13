@@ -13,7 +13,13 @@ export default defineConfig({
       fileName: () => 'index.js'
     },
     rollupOptions: {
-      external: ['react', 'react-dom', '@finance/shared-auth']
+      external: ['react', 'react-dom', '@finance/shared-auth'],
+      output: {
+        globals: {
+          react: "React",
+          "react-dom": "ReactDOM",
+        },
+      }
     }
   }
 });

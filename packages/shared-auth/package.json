@@ -19,7 +19,9 @@
     "react-dom": "^18.3.1"
   },
   "scripts": {
-    "build": "vite build"
+    "dev": "vite",
+    "build": "vite build && tsc --emitDeclarationOnly --declaration --declarationDir dist --project tsconfig.json",
+    "preview": "vite preview"
   },
   "devDependencies": {
     "vite": "^5.4.0",

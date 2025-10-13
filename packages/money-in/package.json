@@ -20,7 +20,8 @@
     "@finance/shared-auth": "*"
   },
   "scripts": {
-    "build": "vite build"
+    "build": "vite build  && tsc --emitDeclarationOnly --declaration --declarationDir dist --project tsconfig.json",
+    "preview": "vite preview"
   },
   "devDependencies": {
     "vite": "^5.4.0",
