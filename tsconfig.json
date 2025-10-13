@@ -1,0 +1,26 @@
+{
+  "compilerOptions": {
+    "target": "ESNext",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "jsx": "react-jsx",
+    "declaration": true,
+    "declarationDir": "dist",
+    "sourceMap": true,
+    "strict": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "types": ["vite/client"],
+    "baseUrl": ".",
+    "paths": {
+      "@shared-auth/*": ["packages/shared-auth/src/*"],
+      "@money-in/*": ["packages/money-in/src/*"],
+      "@money-out/*": ["packages/money-out/src/*"],
+      "@summary/*": ["packages/summary/src/*"]
+    }
+  },
+  "include": ["packages/**/*", "src"],
+  "exclude": ["node_modules", "dist"]
+}

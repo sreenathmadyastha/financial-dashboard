@@ -1,0 +1,25 @@
+{
+  "private": true,
+  "name": "financial-dashboard",
+  "version": "1.0.0",
+  "workspaces": [
+    "packages/*"
+  ],
+  "devDependencies": {
+    "typescript": "^5.5.0",
+    "vite": "^5.4.0",
+    "@vitejs/plugin-react": "^4.3.0"
+  },
+  "overrides": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "scripts": {
+    "api": "node server.js",
+    "build-all": "npm run build-shared-auth && npm run build-money-in && npm run build-money-out && npm run build-summary",
+    "build-shared-auth": "cd packages/shared-auth && npm run build",
+    "build-money-in": "cd packages/money-in && npm run build",
+    "build-money-out": "cd packages/money-out && npm run build",
+    "build-summary": "cd packages/summary && npm run build"
+  }
+}
