@@ -1,0 +1,3 @@
+Install-Package Azure.Data.AppConfiguration
+Install-Package System.Configuration.ConfigurationManager
+Install-Package StackExchange.Redis
