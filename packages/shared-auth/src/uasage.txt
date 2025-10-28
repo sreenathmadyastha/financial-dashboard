@@ -1,0 +1,40 @@
+Usage Examples:
+typescriptimport { useDynatrace } from './useDynatrace';
+
+function MyComponent() {
+  const { reportError, logAction, endAction, trackAsync, identifyUser } = useDynatrace();
+
+  // Report errors
+  const handleError = () => {
+    reportError(new Error('Payment failed'), { 
+      orderId: '123',
+      amount: 99.99 
+    });
+  };
+
+  // Track actions
+  const handleClick = () => {
+    const actionId = logAction('Purchase Button Click', 'user-action');
+    // ... perform action
+    endAction(actionId);
+  };
+
+  // Track async operations (automatically handles start/end)
+  const fetchData = async () => {
+    const data = await trackAsync('Fetch User Data', async () => {
+      return await fetch('/api/user').then(r => r.json());
+    });
+  };
+
+  // Identify user
+  useEffect(() => {
+    identifyUser('user-123');
+  }, []);
+
+  return <div>...</div>;
+}
+
+Setup Requirements:
+Make sure you have the Dynatrace RUM (Real User Monitoring) script loaded in your HTML:
+html<script src="your-dynatrace-rum-script.js"></script>
+The hook will gracefully handle cases where Dynatrace isn't available and fall back to console logging.

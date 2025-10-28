@@ -1,0 +1,475 @@
+// ============================================
+// 1. Install NuGet Package
+// ============================================
+// Install-Package Dynatrace.OpenKit.NET
+// Or for OneAgent SDK:
+// Install-Package Dynatrace.OneAgentSdk
+
+// ============================================
+// 2. appsettings.json Configuration
+// ============================================
+/*
+{
+  "Dynatrace": {
+    "EndpointUrl": "https://your-environment-id.live.dynatrace.com/api/v2/logs/ingest",
+    "ApiToken": "your-api-token",
+    "ApplicationId": "your-app-id",
+    "ApplicationName": "MyWebAPI",
+    "Environment": "Production"
+  },
+  "Logging": {
+    "LogLevel": {
+      "Default": "Information",
+      "Microsoft.AspNetCore": "Warning"
+    }
+  }
+}
+*/
+
+// ============================================
+// 3. DynatraceSettings.cs - Configuration Model
+// ============================================
+using System;
+
+namespace YourNamespace.Configuration
+{
+    public class DynatraceSettings
+    {
+        public string EndpointUrl { get; set; } = string.Empty;
+        public string ApiToken { get; set; } = string.Empty;
+        public string ApplicationId { get; set; } = string.Empty;
+        public string ApplicationName { get; set; } = string.Empty;
+        public string Environment { get; set; } = string.Empty;
+    }
+}
+
+// ============================================
+// 4. IDynatraceService.cs - Service Interface
+// ============================================
+using System;
+using System.Collections.Generic;
+using System.Threading.Tasks;
+
+namespace YourNamespace.Services
+{
+    public interface IDynatraceService
+    {
+        Task LogErrorAsync(Exception exception, Dictionary<string, object>? metadata = null);
+        Task LogEventAsync(string eventName, string eventType, Dictionary<string, object>? properties = null);
+        Task LogMetricAsync(string metricName, double value, Dictionary<string, string>? dimensions = null);
+        void StartAction(string actionName, out string actionId);
+        void EndAction(string actionId);
+        void TrackDependency(string dependencyName, string dependencyType, DateTime startTime, TimeSpan duration, bool success);
+    }
+}
+
+// ============================================
+// 5. DynatraceService.cs - Service Implementation
+// ============================================
+using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.Linq;
+using System.Net.Http;
+using System.Text;
+using System.Text.Json;
+using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+
+namespace YourNamespace.Services
+{
+    public class DynatraceService : IDynatraceService
+    {
+        private readonly DynatraceSettings _settings;
+        private readonly IHttpClientFactory _httpClientFactory;
+        private readonly ILogger<DynatraceService> _logger;
+        private readonly Dictionary<string, Stopwatch> _activeActions;
+
+        public DynatraceService(
+            IOptions<DynatraceSettings> settings,
+            IHttpClientFactory httpClientFactory,
+            ILogger<DynatraceService> logger)
+        {
+            _settings = settings.Value;
+            _httpClientFactory = httpClientFactory;
+            _logger = logger;
+            _activeActions = new Dictionary<string, Stopwatch>();
+        }
+
+        public async Task LogErrorAsync(Exception exception, Dictionary<string, object>? metadata = null)
+        {
+            try
+            {
+                var logEntry = new
+                {
+                    timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+                    level = "ERROR",
+                    message = exception.Message,
+                    exception_type = exception.GetType().Name,
+                    stack_trace = exception.StackTrace,
+                    application = _settings.ApplicationName,
+                    environment = _settings.Environment,
+                    metadata = metadata ?? new Dictionary<string, object>()
+                };
+
+                await SendToDynatraceAsync(logEntry);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to log error to Dynatrace");
+            }
+        }
+
+        public async Task LogEventAsync(string eventName, string eventType, Dictionary<string, object>? properties = null)
+        {
+            try
+            {
+                var logEntry = new
+                {
+                    timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+                    level = "INFO",
+                    event_name = eventName,
+                    event_type = eventType,
+                    application = _settings.ApplicationName,
+                    environment = _settings.Environment,
+                    properties = properties ?? new Dictionary<string, object>()
+                };
+
+                await SendToDynatraceAsync(logEntry);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to log event to Dynatrace");
+            }
+        }
+
+        public async Task LogMetricAsync(string metricName, double value, Dictionary<string, string>? dimensions = null)
+        {
+            try
+            {
+                var metricEntry = new
+                {
+                    timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+                    metric_name = metricName,
+                    value = value,
+                    application = _settings.ApplicationName,
+                    environment = _settings.Environment,
+                    dimensions = dimensions ?? new Dictionary<string, string>()
+                };
+
+                await SendToDynatraceAsync(metricEntry);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to log metric to Dynatrace");
+            }
+        }
+
+        public void StartAction(string actionName, out string actionId)
+        {
+            actionId = Guid.NewGuid().ToString();
+            var stopwatch = Stopwatch.StartNew();
+            _activeActions[actionId] = stopwatch;
+
+            _logger.LogInformation($"Started action: {actionName} with ID: {actionId}");
+        }
+
+        public void EndAction(string actionId)
+        {
+            if (_activeActions.TryGetValue(actionId, out var stopwatch))
+            {
+                stopwatch.Stop();
+                _activeActions.Remove(actionId);
+
+                _ = LogMetricAsync(
+                    $"action.duration",
+                    stopwatch.ElapsedMilliseconds,
+                    new Dictionary<string, string> { { "action_id", actionId } }
+                );
+
+                _logger.LogInformation($"Ended action with ID: {actionId}. Duration: {stopwatch.ElapsedMilliseconds}ms");
+            }
+        }
+
+        public void TrackDependency(string dependencyName, string dependencyType, DateTime startTime, TimeSpan duration, bool success)
+        {
+            _ = LogEventAsync(
+                "DependencyCall",
+                "dependency",
+                new Dictionary<string, object>
+                {
+                    { "dependency_name", dependencyName },
+                    { "dependency_type", dependencyType },
+                    { "duration_ms", duration.TotalMilliseconds },
+                    { "success", success },
+                    { "start_time", startTime }
+                }
+            );
+        }
+
+        private async Task SendToDynatraceAsync(object payload)
+        {
+            if (string.IsNullOrEmpty(_settings.EndpointUrl) || string.IsNullOrEmpty(_settings.ApiToken))
+            {
+                _logger.LogWarning("Dynatrace endpoint or API token not configured. Skipping log.");
+                return;
+            }
+
+            try
+            {
+                var client = _httpClientFactory.CreateClient("Dynatrace");
+                var json = JsonSerializer.Serialize(payload);
+                var content = new StringContent(json, Encoding.UTF8, "application/json");
+
+                var response = await client.PostAsync(_settings.EndpointUrl, content);
+                
+                if (!response.IsSuccessStatusCode)
+                {
+                    _logger.LogWarning($"Failed to send data to Dynatrace. Status: {response.StatusCode}");
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Exception while sending data to Dynatrace");
+            }
+        }
+    }
+}
+
+// ============================================
+// 6. DynatraceMiddleware.cs - Request/Response Tracking
+// ============================================
+using System;
+using System.Diagnostics;
+using System.Threading.Tasks;
+using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Logging;
+
+namespace YourNamespace.Middleware
+{
+    public class DynatraceMiddleware
+    {
+        private readonly RequestDelegate _next;
+        private readonly ILogger<DynatraceMiddleware> _logger;
+
+        public DynatraceMiddleware(RequestDelegate next, ILogger<DynatraceMiddleware> logger)
+        {
+            _next = next;
+            _logger = logger;
+        }
+
+        public async Task InvokeAsync(HttpContext context, IDynatraceService dynatraceService)
+        {
+            var stopwatch = Stopwatch.StartNew();
+            var requestPath = context.Request.Path.Value ?? string.Empty;
+
+            dynatraceService.StartAction($"HTTP {context.Request.Method} {requestPath}", out var actionId);
+
+            try
+            {
+                await _next(context);
+                stopwatch.Stop();
+
+                // Log successful request
+                await dynatraceService.LogEventAsync(
+                    "HttpRequest",
+                    "web_request",
+                    new System.Collections.Generic.Dictionary<string, object>
+                    {
+                        { "method", context.Request.Method },
+                        { "path", requestPath },
+                        { "status_code", context.Response.StatusCode },
+                        { "duration_ms", stopwatch.ElapsedMilliseconds },
+                        { "user_agent", context.Request.Headers["User-Agent"].ToString() }
+                    }
+                );
+            }
+            catch (Exception ex)
+            {
+                stopwatch.Stop();
+
+                // Log failed request
+                await dynatraceService.LogErrorAsync(ex, new System.Collections.Generic.Dictionary<string, object>
+                {
+                    { "method", context.Request.Method },
+                    { "path", requestPath },
+                    { "duration_ms", stopwatch.ElapsedMilliseconds }
+                });
+
+                throw;
+            }
+            finally
+            {
+                dynatraceService.EndAction(actionId);
+            }
+        }
+    }
+}
+
+// ============================================
+// 7. Program.cs - Startup Configuration
+// ============================================
+using Microsoft.AspNetCore.Builder;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using YourNamespace.Configuration;
+using YourNamespace.Middleware;
+using YourNamespace.Services;
+
+var builder = WebApplication.CreateBuilder(args);
+
+// Configure Dynatrace settings
+builder.Services.Configure<DynatraceSettings>(
+    builder.Configuration.GetSection("Dynatrace"));
+
+// Register HttpClient for Dynatrace
+builder.Services.AddHttpClient("Dynatrace", client =>
+{
+    var dynatraceSettings = builder.Configuration.GetSection("Dynatrace").Get<DynatraceSettings>();
+    if (dynatraceSettings != null && !string.IsNullOrEmpty(dynatraceSettings.ApiToken))
+    {
+        client.DefaultRequestHeaders.Add("Authorization", $"Api-Token {dynatraceSettings.ApiToken}");
+        client.DefaultRequestHeaders.Add("Accept", "application/json");
+    }
+});
+
+// Register Dynatrace service
+builder.Services.AddSingleton<IDynatraceService, DynatraceService>();
+
+builder.Services.AddControllers();
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen();
+
+var app = builder.Build();
+
+if (app.Environment.IsDevelopment())
+{
+    app.UseSwagger();
+    app.UseSwaggerUI();
+}
+
+// Add Dynatrace middleware
+app.UseMiddleware<DynatraceMiddleware>();
+
+app.UseHttpsRedirection();
+app.UseAuthorization();
+app.MapControllers();
+
+app.Run();
+
+// ============================================
+// 8. Example Controller Usage
+// ============================================
+using System;
+using System.Collections.Generic;
+using System.Threading.Tasks;
+using Microsoft.AspNetCore.Mvc;
+using YourNamespace.Services;
+
+namespace YourNamespace.Controllers
+{
+    [ApiController]
+    [Route("api/[controller]")]
+    public class SampleController : ControllerBase
+    {
+        private readonly IDynatraceService _dynatraceService;
+
+        public SampleController(IDynatraceService dynatraceService)
+        {
+            _dynatraceService = dynatraceService;
+        }
+
+        [HttpGet("test")]
+        public async Task<IActionResult> TestEndpoint()
+        {
+            // Track a custom action
+            _dynatraceService.StartAction("ProcessTestRequest", out var actionId);
+
+            try
+            {
+                // Simulate some work
+                await Task.Delay(100);
+
+                // Log a custom event
+                await _dynatraceService.LogEventAsync(
+                    "TestEndpointCalled",
+                    "custom_event",
+                    new Dictionary<string, object>
+                    {
+                        { "user_id", "12345" },
+                        { "request_time", DateTime.UtcNow }
+                    }
+                );
+
+                // Log a metric
+                await _dynatraceService.LogMetricAsync(
+                    "api.test.response_time",
+                    100,
+                    new Dictionary<string, string> { { "endpoint", "test" } }
+                );
+
+                return Ok(new { message = "Success" });
+            }
+            catch (Exception ex)
+            {
+                await _dynatraceService.LogErrorAsync(ex, new Dictionary<string, object>
+                {
+                    { "endpoint", "test" },
+                    { "user_id", "12345" }
+                });
+                return StatusCode(500, "Internal server error");
+            }
+            finally
+            {
+                _dynatraceService.EndAction(actionId);
+            }
+        }
+
+        [HttpPost("order")]
+        public async Task<IActionResult> CreateOrder([FromBody] OrderRequest request)
+        {
+            var startTime = DateTime.UtcNow;
+
+            try
+            {
+                // Track database dependency
+                var dbStartTime = DateTime.UtcNow;
+                // ... database call ...
+                _dynatraceService.TrackDependency(
+                    "DatabaseInsert",
+                    "SQL",
+                    dbStartTime,
+                    DateTime.UtcNow - dbStartTime,
+                    true
+                );
+
+                // Log business event
+                await _dynatraceService.LogEventAsync(
+                    "OrderCreated",
+                    "business_event",
+                    new Dictionary<string, object>
+                    {
+                        { "order_id", Guid.NewGuid().ToString() },
+                        { "amount", request.Amount },
+                        { "customer_id", request.CustomerId }
+                    }
+                );
+
+                return Ok(new { orderId = Guid.NewGuid() });
+            }
+            catch (Exception ex)
+            {
+                await _dynatraceService.LogErrorAsync(ex);
+                return StatusCode(500, "Failed to create order");
+            }
+        }
+    }
+
+    public class OrderRequest
+    {
+        public string CustomerId { get; set; } = string.Empty;
+        public decimal Amount { get; set; }
+    }
+}
