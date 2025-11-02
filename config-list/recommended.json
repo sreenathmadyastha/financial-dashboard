@@ -1,0 +1,26 @@
+{
+  "overallSummary": [
+    {
+      "index": 1,
+      "monthYear": "May-25",
+      "total": 150.0,
+      "categories": {
+        "moneyInTotal": 200,
+        "moneyOutTotal": 50
+      }
+    },
+    {
+      "index": 4,
+      "monthYear": "Aug-25",
+      "total": 300.0,
+      "categories": {
+        "moneyInTotal": 600,
+        "moneyOutTotal": 300
+      }
+    }
+  ],
+  "periodInfo": {
+    "requestedMonths": 6,
+    "allMonths": ["May-25", "Jun-25", "Jul-25", "Aug-25", "Sep-25", "Oct-25"]
+  }
+}

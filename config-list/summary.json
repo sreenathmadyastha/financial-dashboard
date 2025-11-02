@@ -1,0 +1,40 @@
+{
+  "overallSummary": [
+    {
+      "index": 1,
+      "monthYear": "Jul-25",
+      "total": 0,
+      "categories": {
+        "moneyInTotal": 0,
+        "moneyOutTotal": 0
+      }
+    },
+    {
+      "index": 2,
+      "monthYear": "Aug-25",
+      "total": 0.0,
+      "categories": {
+        "moneyInTotal": 0,
+        "moneyOutTotal": 0
+      }
+    },
+    {
+      "index": 3,
+      "monthYear": "Sep-25",
+      "total": 200.0,
+      "categories": {
+        "moneyInTotal": 500,
+        "moneyOutTotal": 300
+      }
+    },
+    {
+      "index": 4,
+      "monthYear": "OCt-25",
+      "total": 200.0,
+      "categories": {
+        "moneyInTotal": 500,
+        "moneyOutTotal": 300
+      }
+    }
+  ]
+}
