@@ -1,3 +1,32 @@
 Install-Package Azure.Data.AppConfiguration
 Install-Package System.Configuration.ConfigurationManager
 Install-Package StackExchange.Redis
+
+<configuration>
+    <startup> 
+        <supportedRuntime version="v4.0" sku=".NETFramework,Version=v4.8" />
+    </startup>
+    <appSettings>
+        <!-- Azure App Configuration Connection String -->
+        <add key="AzureAppConfigConnectionString" value="Endpoint=https://your-appconfig.azconfig.io;Id=xxxx;Secret=xxxx" />
+        
+        <!-- Redis Connection String -->
+        <add key="RedisConnectionString" value="your-redis-cache.redis.cache.windows.net:6380,password=your-password,ssl=True,abortConnect=False" />
+        
+        <!-- Azure Key Vault URL -->
+        <add key="KeyVaultUrl" value="https://your-keyvault.vault.azure.net/" />
+    </appSettings>
+</configuration>
+
+Install-Package Azure.Data.AppConfiguration
+Install-Package Azure.Security.KeyVault.Secrets
+Install-Package Azure.Identity
+Install-Package StackExchange.Redis
+Install-Package System.Configuration.ConfigurationManager
+
+Three Data Sources: Azure App Configuration, Redis Cache, Azure Key Vault
+✅ Pattern Filtering: Use wildcards like MyApp:*, *Database*, Setting*
+✅ Copy Functionality: Copy both keys and values to clipboard
+✅ Smart Caching: Data loaded once, filtered locally (no repeated queries)
+✅ Add New Items: Add configurations, Redis keys, and Key Vault secrets
+✅ Default Credentials: Key Vault uses Azure DefaultAzureCredential
