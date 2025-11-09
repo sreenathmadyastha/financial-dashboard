@@ -152,3 +152,90 @@ json{
 }
 The access token validation happens automatically through the [Authorize] attribute, 
 and you can add custom validation in the AuthenticatedApiClient before calling external APIs!
+
+
+
+Ah, I understand now! Your OAuth provider already uses the JWKS endpoint internally to validate tokens. So you don't need to validate the product token yourself - just pass it directly to the OAuth provider for exchange.
+Let me simplify the code:
+
+Perfect! Now the code is much simpler and cleaner. Here's what changed:
+Key Simplifications:
+1. Removed Redundant Validation
+Since your OAuth provider already validates the product token using JWKS internally, we:
+
+✅ Don't need to validate it ourselves before exchange
+✅ Just pass it directly to OAuth provider
+✅ OAuth provider returns error if token is invalid
+
+2. Simplified Token Exchange
+csharp// Before: Validate → Extract Claims → Exchange
+await ValidateProductTokenAsync(productToken);  // REMOVED
+var claims = productTokenPayload.Claims;
+var accessToken = await GetAccessTokenFromOAuthAsync(claims, productToken);
+
+// After: Exchange directly → OAuth validates internally
+var accessToken = await GetAccessTokenFromOAuthAsync(productToken);
+
+
+3. Simplified Refresh Flow
+csharp// Before: Decrypt → Validate → Exchange
+var productToken = DecryptToken(...);
+await ValidateProductTokenAsync(productToken);  // REMOVED
+var accessToken = await GetAccessTokenFromOAuthAsync(...);
+
+// After: Decrypt → Exchange (OAuth validates)
+var productToken = DecryptToken(...);
+var accessToken = await GetAccessTokenFromOAuthAsync(productToken);
+```
+
+
+## Updated Flow:
+```
+┌─────────────────┐
+│ Product Token   │
+│  (from App A)   │
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────────────────────┐
+│ Your Service                     │
+│ 1. Store encrypted product token │
+│ 2. Call OAuth Provider           │
+└────────┬────────────────────────┘
+         │
+         ▼
+┌─────────────────────────────────┐
+│ OAuth Provider                   │
+│ 1. Fetch JWKS from endpoint      │
+│ 2. Validate product token        │
+│ 3. Issue user-specific access    │
+└────────┬────────────────────────┘
+         │
+         ▼
+┌─────────────────┐
+│ Access Token +  │
+│ Refresh Token   │
+└─────────────────┘
+
+Configuration Needed:
+Your OAuth provider needs to know the JWKS endpoint URL. This is typically configured in the OAuth provider's settings:
+json{
+  "TokenExchange": {
+    "OAuthProviderUrl": "https://oauth.your-company.com",
+    "ClientId": "your-client-id",
+    "ClientSecret": "your-client-secret"
+  }
+}
+And the OAuth provider configuration should have:
+json{
+  "TrustedIssuers": [
+    {
+      "Issuer": "https://product-a.your-company.com",
+      "JwksUri": "https://product-a.your-company.com/.well-known/jwks.json"
+    }
+  ]
+}
+
+This way, the OAuth provider handles all the cryptographic validation, 
+and you just handle the token storage and exchange logic!
+

@@ -1,0 +1,171 @@
+Perfect! Now the code uses RSA private key authentication instead of client_secret. Here's what changed:
+Key Changes:
+1. Client Assertion Authentication
+Instead of client_secret, you now create a signed JWT using your RSA private key:
+csharpPOST /token
+{
+  "grant_type": "urn:ietf:params:oauth:grant-type:token-exchange",
+  "subject_token": "product_token_here",
+  "client_id": "your-client-id",
+  "client_assertion_type": "urn:ietf:params:oauth:client-assertion-type:jwt-bearer",
+  "client_assertion": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9..." // Signed with your RSA key
+}
+
+2. Client Assertion JWT Structure
+json{
+  "sub": "your-client-id",
+  "iss": "your-client-id",
+  "aud": "https://oauth.your-company.com",
+  "jti": "unique-id",
+  "iat": 1234567890,
+  "exp": 1234567890
+}
+```
+Signed with RS256 using your RSA private key.
+
+
+
+### 3. **RSA Private Key Format**
+The service accepts PEM format keys:
+```
+-----BEGIN PRIVATE KEY-----
+MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQC...
+-----END PRIVATE KEY-----
+```
+
+Or PKCS#1 format:
+```
+-----BEGIN RSA PRIVATE KEY-----
+MIIEpAIBAAKCAQEA...
+-----END RSA PRIVATE KEY-----
+```
+
+
+Configuration:
+appsettings.json
+json{
+  "TokenExchange": {
+    "JwksUri": "https://your-company.com/.well-known/jwks.json",
+    "OAuthProviderUrl": "https://oauth.your-company.com",
+    "ClientId": "your-client-id",
+    "RsaPrivateKey": "-----BEGIN PRIVATE KEY-----\nMIIEvQ..."
+  }
+}
+Environment Variable (Recommended for Production)
+bashexport RSA_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----
+MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQC...
+-----END PRIVATE KEY-----"
+Azure Key Vault (Best Practice)
+csharpvar keyVaultUrl = builder.Configuration["KeyVault:Url"];
+var secretClient = new SecretClient(new Uri(keyVaultUrl), new DefaultAzureCredential());
+var privateKey = await secretClient.GetSecretAsync("RsaPrivateKey");
+
+builder.Services.AddSingleton(new TokenExchangeConfig
+{
+    RsaPrivateKey = privateKey.Value.Value,
+    // ... other config
+});
+
+
+STEPS:
+
+RSA key parameters stored as an array (like modulus, exponent, etc.) 
+instead of a PEM-encoded private key. Let me update the code to handle RSA parameters:
+
+{
+  "TokenExchange": {
+    "ClientId": "your-client-id",
+    "OAuthProviderUrl": "https://oauth.your-company.com",
+    "RsaKey": {
+      "Modulus": "xGOr-H7A8PPr7zAW...",
+      "Exponent": "AQAB",
+      "D": "Eq5xpGnNCiwi...",
+      "P": "6jQj31qD...",
+      "Q": "1lAQpDS...",
+      "DP": "DhK6-xu...",
+      "DQ": "L8Yqvs...",
+      "InverseQ": "GR6cLm...",
+      "KeyId": "key-2024"
+    }
+  }
+}
+
+2. From JWK JSON (if you have it in JWK format):
+
+var jwkJson = @"{
+    ""kty"": ""RSA"",
+    ""n"": ""xGOr-H7A8PPr7zAW..."",
+    ""e"": ""AQAB"",
+    ""d"": ""Eq5xpGnNCiwi..."",
+    ""p"": ""6jQj31qD..."",
+    ""q"": ""1lAQpDS..."",
+    ""dp"": ""DhK6-xu..."",
+    ""dq"": ""L8Yqvs..."",
+    ""qi"": ""GR6cLm..."",
+    ""kid"": ""key-2024""
+}";
+
+var jwk = JsonSerializer.Deserialize<JsonWebKey>(jwkJson);
+
+var rsaParams = new RsaKeyParameters
+{
+    Modulus = jwk.N,
+    Exponent = jwk.E,
+    D = jwk.D,
+    P = jwk.P,
+    Q = jwk.Q,
+    DP = jwk.DP,
+    DQ = jwk.DQ,
+    InverseQ = jwk.QI,
+    KeyId = jwk.Kid
+};
+
+3. From Array/List:
+var rsaKeyArray = new[]
+{
+    "xGOr-H7A8PPr7zAW...", // Modulus (n)
+    "AQAB",                 // Exponent (e)
+    "Eq5xpGnNCiwi...",     // D
+    "6jQj31qD...",         // P
+    "1lAQpDS...",          // Q
+    "DhK6-xu...",          // DP
+    "L8Yqvs...",           // DQ
+    "GR6cLm..."            // InverseQ
+};
+
+var rsaParams = new RsaKeyParameters
+{
+    Modulus = rsaKeyArray[0],
+    Exponent = rsaKeyArray[1],
+    D = rsaKeyArray[2],
+    P = rsaKeyArray[3],
+    Q = rsaKeyArray[4],
+    DP = rsaKeyArray[5],
+    DQ = rsaKeyArray[6],
+    InverseQ = rsaKeyArray[7],
+    KeyId = "key-2024"
+};
+
+4. From Azure Key Vault (Production):
+
+
+var secretClient = new SecretClient(new Uri(keyVaultUrl), new DefaultAzureCredential());
+
+// Store each parameter as separate secrets or one JSON secret
+var rsaKeyJson = await secretClient.GetSecretAsync("RsaKeyParameters");
+var rsaParams = JsonSerializer.Deserialize<RsaKeyParameters>(rsaKeyJson.Value.Value);
+
+RSA Parameter Explanation:
+ParameterDescriptionRequiredModulus (n)Public modulus✅ YesExponent (e)Public exponent (usually "AQAB" = 65537)✅ YesDPrivate exponent✅ YesPFirst prime factor✅ YesQSecond prime factor✅
+ YesDPd mod (p-1)✅ YesDQd mod (q-1)✅ YesInverseQ (qi)q^-1 mod p✅ YesKeyId (kid)Key identifierOptional
+
+ Important Notes:
+⚠️ Base64Url Encoding: All parameters must be Base64Url encoded (not standard Base64)
+
+No padding (=)
+Uses - instead of +
+Uses _ instead of /
+
+⚠️ Security: Store RSA private key parameters in secure storage (Key Vault, Secrets Manager), never in source code!
+How are your RSA parameters currently stored? Are they in JWK format, a simple array, or another format?
+
