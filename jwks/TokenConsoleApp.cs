@@ -177,24 +177,52 @@ namespace TokenExchangeService
         /// Exchange product token for USER-SPECIFIC access token via company OAuth provider
         /// Uses client assertion (actor token) signed with RSA key for authentication
         /// OAuth provider validates the product token using JWKS endpoint internally
+        /// and GENERATES a new access token based on the user info in product token
         /// </summary>
         public async Task<string> GetAccessTokenFromOAuthAsync(string productToken)
         {
             try
             {
+                // Decode product token to extract user information
+                var handler = new JwtSecurityTokenHandler();
+                var decodedToken = handler.ReadJwtToken(productToken);
+
+                var userId = decodedToken.Claims.FirstOrDefault(c => c.Type == "sub")?.Value
+                             ?? decodedToken.Claims.FirstOrDefault(c => c.Type == "userId")?.Value;
+
+                var userEmail = decodedToken.Claims.FirstOrDefault(c => c.Type == "email")?.Value;
+                var userName = decodedToken.Claims.FirstOrDefault(c => c.Type == "name")?.Value;
+                var scope = decodedToken.Claims.FirstOrDefault(c => c.Type == "scope")?.Value
+                            ?? "openid profile email finance.read";
+
+                if (string.IsNullOrEmpty(userId))
+                {
+                    throw new Exception("Product token does not contain user identifier");
+                }
+
                 // Create client assertion (actor token) signed with RSA private key
                 var clientAssertion = CreateClientAssertion();
 
+                // Request OAuth provider to GENERATE a new access token for this user
                 var requestData = new Dictionary<string, string>
                 {
                     { "grant_type", "urn:ietf:params:oauth:grant-type:token-exchange" },
-                    { "subject_token", productToken },
+                    { "subject_token", productToken },           // Product token for validation
                     { "subject_token_type", "urn:ietf:params:oauth:token-type:jwt" },
                     { "client_id", _config.ClientId },
                     { "client_assertion_type", "urn:ietf:params:oauth:client-assertion-type:jwt-bearer" },
-                    { "client_assertion", clientAssertion },
-                    { "requested_token_type", "urn:ietf:params:oauth:token-type:access_token" }
+                    { "client_assertion", clientAssertion },     // Actor token (your service identity)
+                    { "requested_token_type", "urn:ietf:params:oauth:token-type:access_token" },
+                    { "scope", scope },                          // Requested scopes for new token
+                    { "resource", _config.ClientId }             // Target audience for new token
                 };
+
+                // Optional: Add user context claims for token generation
+                if (!string.IsNullOrEmpty(userEmail))
+                {
+                    requestData.Add("actor_token", userEmail);
+                    requestData.Add("actor_token_type", "urn:ietf:params:oauth:token-type:id_token");
+                }
 
                 var content = new FormUrlEncodedContent(requestData);
                 var response = await _httpClient.PostAsync($"{_config.OAuthProviderUrl}/token", content);
@@ -208,11 +236,93 @@ namespace TokenExchangeService
                 var responseContent = await response.Content.ReadAsStringAsync();
                 var tokenResponse = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(responseContent);
 
+                // OAuth provider generates and returns a NEW access token
                 return tokenResponse["access_token"].GetString();
             }
             catch (Exception ex)
             {
                 throw new Exception($"OAuth token exchange failed: {ex.Message}", ex);
+            }
+        }
+
+        /// <summary>
+        /// Alternative: Generate access token locally (if OAuth provider doesn't support token exchange)
+        /// Creates a new JWT access token signed with your RSA key
+        /// </summary>
+        public string GenerateAccessTokenLocally(string productToken)
+        {
+            try
+            {
+                // Decode product token to extract user information
+                var handler = new JwtSecurityTokenHandler();
+                var decodedToken = handler.ReadJwtToken(productToken);
+
+                var userId = decodedToken.Claims.FirstOrDefault(c => c.Type == "sub")?.Value
+                             ?? decodedToken.Claims.FirstOrDefault(c => c.Type == "userId")?.Value;
+
+                var userEmail = decodedToken.Claims.FirstOrDefault(c => c.Type == "email")?.Value;
+                var userName = decodedToken.Claims.FirstOrDefault(c => c.Type == "name")?.Value;
+                var scope = decodedToken.Claims.FirstOrDefault(c => c.Type == "scope")?.Value
+                            ?? "openid profile email finance.read";
+
+                if (string.IsNullOrEmpty(userId))
+                {
+                    throw new Exception("Product token does not contain user identifier");
+                }
+
+                var now = DateTimeOffset.UtcNow;
+                var jti = Guid.NewGuid().ToString();
+
+                // Build claims for the new access token from product token information
+                var claims = new List<Claim>
+                {
+                    new Claim(JwtRegisteredClaimNames.Sub, userId),
+                    new Claim(JwtRegisteredClaimNames.Jti, jti),
+                    new Claim(JwtRegisteredClaimNames.Iat, now.ToUnixTimeSeconds().ToString(), ClaimValueTypes.Integer64),
+                    new Claim("client_id", _config.ClientId),
+                    new Claim("scope", scope)
+                };
+
+                // Add optional claims from product token
+                if (!string.IsNullOrEmpty(userEmail))
+                    claims.Add(new Claim(JwtRegisteredClaimNames.Email, userEmail));
+
+                if (!string.IsNullOrEmpty(userName))
+                    claims.Add(new Claim(JwtRegisteredClaimNames.Name, userName));
+
+                // Copy other relevant claims from product token
+                foreach (var claim in decodedToken.Claims)
+                {
+                    if (claim.Type != "sub" && claim.Type != "iat" && claim.Type != "exp" &&
+                        claim.Type != "jti" && claim.Type != "iss" && claim.Type != "aud")
+                    {
+                        claims.Add(new Claim(claim.Type, claim.Value));
+                    }
+                }
+
+                var securityKey = new RsaSecurityKey(_rsaKey)
+                {
+                    KeyId = _config.RsaKeyParameters.KeyId ?? _config.ClientId
+                };
+
+                var credentials = new SigningCredentials(securityKey, SecurityAlgorithms.RsaSha256);
+
+                // Generate NEW access token with user information
+                var accessToken = new JwtSecurityToken(
+                    issuer: _config.ClientId,
+                    audience: _config.ClientId,  // Or specify your API audience
+                    claims: claims,
+                    notBefore: now.DateTime,
+                    expires: now.AddHours(1).DateTime,  // 1 hour expiration
+                    signingCredentials: credentials
+                );
+
+                var tokenHandler = new JwtSecurityTokenHandler();
+                return tokenHandler.WriteToken(accessToken);
+            }
+            catch (Exception ex)
+            {
+                throw new Exception($"Failed to generate access token: {ex.Message}", ex);
             }
         }
 
@@ -341,22 +451,16 @@ namespace TokenExchangeService
 
         /// <summary>
         /// Main method: Exchange product token for USER-SPECIFIC access + refresh tokens
-        /// 1. Exchanges product token with OAuth provider (uses client assertion as actor token)
-        /// 2. OAuth provider validates product token internally using JWKS
-        /// 3. Stores encrypted product token for future refresh
+        /// Option 1: OAuth provider generates new access token from product token info
+        /// Option 2: Generate access token locally from product token info
         /// </summary>
-        public async Task<TokenResponse> ExchangeTokenAsync(string productToken)
+        public async Task<TokenResponse> ExchangeTokenAsync(string productToken, bool useLocalGeneration = false)
         {
             try
             {
-                Console.WriteLine("Step 1: Creating client assertion (actor token) and exchanging with OAuth provider...");
+                Console.WriteLine("Step 1: Extracting user info from product token...");
 
-                // Exchange product token with OAuth provider using client assertion
-                var accessToken = await GetAccessTokenFromOAuthAsync(productToken);
-
-                Console.WriteLine("Step 2: Extracting user info from product token...");
-
-                // Decode product token to extract user info (no validation needed - OAuth did it)
+                // Decode product token to extract user info
                 var handler = new JwtSecurityTokenHandler();
                 var decodedToken = handler.ReadJwtToken(productToken);
 
@@ -368,13 +472,30 @@ namespace TokenExchangeService
                     throw new Exception("Product token does not contain user identifier");
                 }
 
+                string accessToken;
+
+                if (useLocalGeneration)
+                {
+                    Console.WriteLine("Step 2: Generating access token locally from product token information...");
+                    // Generate access token locally using product token information
+                    accessToken = GenerateAccessTokenLocally(productToken);
+                }
+                else
+                {
+                    Console.WriteLine("Step 2: Requesting OAuth provider to generate access token from product token information...");
+                    // Request OAuth provider to generate new access token
+                    accessToken = await GetAccessTokenFromOAuthAsync(productToken);
+                }
+
                 Console.WriteLine("Step 3: Generating refresh token and storing encrypted product token...");
 
                 var metadata = new Dictionary<string, string>
                 {
                     { "productTokenId", decodedToken.Claims.FirstOrDefault(c => c.Type == "jti")?.Value ?? "" },
                     { "scope", decodedToken.Claims.FirstOrDefault(c => c.Type == "scope")?.Value ?? "" },
-                    { "clientId", decodedToken.Claims.FirstOrDefault(c => c.Type == "aud")?.Value ?? "" }
+                    { "clientId", decodedToken.Claims.FirstOrDefault(c => c.Type == "aud")?.Value ?? "" },
+                    { "email", decodedToken.Claims.FirstOrDefault(c => c.Type == "email")?.Value ?? "" },
+                    { "name", decodedToken.Claims.FirstOrDefault(c => c.Type == "name")?.Value ?? "" }
                 };
 
                 // Store encrypted product token for re-exchange when access token expires
@@ -396,9 +517,10 @@ namespace TokenExchangeService
 
         /// <summary>
         /// Refresh access token using local refresh token
-        /// Re-exchanges the stored product token with OAuth provider using client assertion
+        /// Option 1: Re-exchanges with OAuth provider to generate new token
+        /// Option 2: Generates new token locally from stored product token info
         /// </summary>
-        public async Task<TokenResponse> RefreshAccessTokenAsync(string refreshToken)
+        public async Task<TokenResponse> RefreshAccessTokenAsync(string refreshToken, bool useLocalGeneration = false)
         {
             try
             {
@@ -426,10 +548,20 @@ namespace TokenExchangeService
                 // Decrypt the stored product token
                 var productToken = DecryptToken(refreshTokenData.EncryptedProductToken);
 
-                Console.WriteLine("Step 3: Re-exchanging product token with OAuth provider using client assertion...");
+                string newAccessToken;
 
-                // Re-exchange product token with OAuth provider (creates new client assertion)
-                var newAccessToken = await GetAccessTokenFromOAuthAsync(productToken);
+                if (useLocalGeneration)
+                {
+                    Console.WriteLine("Step 3: Generating new access token locally from product token information...");
+                    // Generate new access token locally using product token information
+                    newAccessToken = GenerateAccessTokenLocally(productToken);
+                }
+                else
+                {
+                    Console.WriteLine("Step 3: Requesting OAuth provider to generate new access token...");
+                    // Re-exchange with OAuth provider to generate new access token
+                    newAccessToken = await GetAccessTokenFromOAuthAsync(productToken);
+                }
 
                 return new TokenResponse
                 {
@@ -543,26 +675,36 @@ namespace TokenExchangeService
             {
                 Console.WriteLine("=== Token Exchange Example ===\n");
 
-                // Step 1: Exchange product token for access + refresh tokens
                 var productToken = "eyJhbGc..."; // Token from another application
-                var tokens = await tokenService.ExchangeTokenAsync(productToken);
 
-                Console.WriteLine($"\n✓ Access Token: {tokens.AccessToken.Substring(0, 50)}...");
-                Console.WriteLine($"✓ Refresh Token: {tokens.RefreshToken.Substring(0, 50)}...");
-                Console.WriteLine($"✓ Expires In: {tokens.ExpiresIn} seconds\n");
+                // Option 1: OAuth provider generates new access token
+                Console.WriteLine("--- Option 1: OAuth Provider Generation ---");
+                var tokens1 = await tokenService.ExchangeTokenAsync(productToken, useLocalGeneration: false);
+                Console.WriteLine($"✓ Access Token (from OAuth): {tokens1.AccessToken.Substring(0, 50)}...");
+                Console.WriteLine($"✓ Refresh Token: {tokens1.RefreshToken.Substring(0, 50)}...\n");
 
-                // Step 2: Use access token to call protected APIs
+                // Option 2: Generate access token locally
+                Console.WriteLine("--- Option 2: Local Generation ---");
+                var tokens2 = await tokenService.ExchangeTokenAsync(productToken, useLocalGeneration: true);
+                Console.WriteLine($"✓ Access Token (local): {tokens2.AccessToken.Substring(0, 50)}...");
+                Console.WriteLine($"✓ Refresh Token: {tokens2.RefreshToken.Substring(0, 50)}...\n");
+
+                // Use access token to call protected APIs
                 Console.WriteLine("=== Using Access Token ===");
-                Console.WriteLine("Now you can call protected APIs with this access token\n");
+                Console.WriteLine("The access token contains user information from product token:");
+                Console.WriteLine("- User ID (sub claim)");
+                Console.WriteLine("- Email");
+                Console.WriteLine("- Name");
+                Console.WriteLine("- Scopes\n");
 
-                // Step 3: Refresh access token when it expires
+                // Refresh access token when it expires
                 Console.WriteLine("=== Refreshing Access Token ===");
-                var newTokens = await tokenService.RefreshAccessTokenAsync(tokens.RefreshToken);
+                var newTokens = await tokenService.RefreshAccessTokenAsync(tokens1.RefreshToken, useLocalGeneration: false);
                 Console.WriteLine($"✓ New Access Token: {newTokens.AccessToken.Substring(0, 50)}...\n");
 
-                // Step 4: Revoke refresh token (logout)
+                // Revoke refresh token (logout)
                 Console.WriteLine("=== Revoking Refresh Token ===");
-                var revoked = await tokenService.RevokeRefreshTokenAsync(tokens.RefreshToken);
+                var revoked = await tokenService.RevokeRefreshTokenAsync(tokens1.RefreshToken);
                 Console.WriteLine($"✓ Refresh token revoked: {revoked}");
             }
             catch (Exception ex)
