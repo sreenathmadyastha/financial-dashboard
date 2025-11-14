@@ -78,4 +78,3 @@ private static async Task<RSA> BuildRsaFromKeyVaultAsync(KeyClient kvClient, Key
     rsa.ImportParameters(parameters);
     return rsa;
 }
-}
