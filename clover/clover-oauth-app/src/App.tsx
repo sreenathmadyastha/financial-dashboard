@@ -54,6 +54,9 @@ export default function CloverOAuthApp() {
       // We'll simulate the token exchange here
       exchangeCodeForToken(code, merchantIdParam);
     }
+
+
+
   }, []);
 
   const startOAuthFlow = () => {
