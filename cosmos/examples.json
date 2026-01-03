@@ -1,0 +1,41 @@
+[
+  {
+    "id": "product-123",
+    "sponsorId": "sponsor-456",
+    "subscriberId": "subscriber-789",
+    "businessUserId": "business-101",
+    "name": "Gaming Laptop",
+    "description": "High-performance laptop",
+    "price": 1299.99,
+    "category": "Electronics",
+    "isCloverLinked": false,
+    "sku": "SKU-A1B2C3D4",
+    "createdBy": "john.doe@example.com",
+    "createdDate": "2026-01-02T14:30:25.123Z",
+    "modifiedBy": "john.doe@example.com",
+    "modifiedDate": "2026-01-02T14:30:25.123Z"
+  },
+
+  {
+    "id": "audit-001",
+    "action": "UPDATE",
+    "entityType": "Product",
+    "entityId": "product-123",
+    "details": "Updated price from 1299.99 to 1399.99",
+    "createdBy": "admin@example.com",
+    "createdDate": "2026-01-02T15:00:00.000Z",
+    "modifiedBy": "admin@example.com",
+    "modifiedDate": "2026-01-02T15:00:00.000Z"
+  },
+
+  {
+    "id": "setting-001",
+    "tenantId": "sponsor-456",
+    "settingKey": "MaxOrderAmount",
+    "settingValue": "10000",
+    "createdBy": "system@example.com",
+    "createdDate": "2026-01-01T00:00:00.000Z",
+    "modifiedBy": "admin@example.com",
+    "modifiedDate": "2026-01-02T10:00:00.000Z"
+  }
+]
