@@ -1,3 +1,9 @@
+// Option 1: Use Sliding Expiration with TTL Refresh (RECOMMENDED)
+// Update the cache entry's TTL whenever it's accessed, ensuring all data in a response expires together:
+
+
+
+
 using StackExchange.Redis;
 using System.Text.Json;
 
