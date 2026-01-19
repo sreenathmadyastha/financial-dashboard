@@ -1,0 +1,3 @@
+resource_group_name   = "your-resource-group-name"
+cosmosdb_account_name = "your-cosmosdb-account-name"
+database_name         = "cfc_clover_db"
