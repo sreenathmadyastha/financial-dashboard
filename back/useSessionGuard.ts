@@ -1,10 +1,7 @@
 // src/hooks/useSessionGuard.ts
 import { useEffect, useLayoutEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
 
 export const useSessionGuard = () => {
-    const navigate = useNavigate();
-
     // Check token immediately before paint
     useLayoutEffect(() => {
         const token = sessionStorage.getItem('accessToken');
