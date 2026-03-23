@@ -1,0 +1,656 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Inter', sans-serif;
+    font-size: 14px;
+    background: #F4F5F7;
+    color: #172B4D;
+    min-height: 100vh;
+  }
+
+  /* Confluence chrome */
+  .conf-topbar {
+    background: #0052CC;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    padding: 0 20px;
+    gap: 16px;
+    font-size: 12px;
+    color: rgba(255,255,255,0.85);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  .conf-topbar-logo { font-weight: 700; color: #fff; letter-spacing: -0.3px; font-size: 13px; }
+  .conf-topbar-crumb { opacity: 0.7; font-size: 11px; }
+  .conf-topbar-crumb span { color: rgba(255,255,255,0.5); margin: 0 4px; }
+
+  /* Layout */
+  .page-wrap {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 32px 24px 80px;
+  }
+
+  /* Page header */
+  .page-header {
+    margin-bottom: 28px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid #DFE1E6;
+  }
+  .page-label {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    color: #0052CC;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+  .page-title {
+    font-size: 28px;
+    font-weight: 700;
+    color: #172B4D;
+    line-height: 1.2;
+    margin-bottom: 10px;
+    letter-spacing: -0.4px;
+  }
+  .page-meta {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    font-size: 12px;
+    color: #6B778C;
+  }
+  .page-meta-dot { width: 3px; height: 3px; border-radius: 50%; background: #DFE1E6; }
+  .status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 3px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .badge-active { background: #E3FCEF; color: #006644; }
+  .badge-required { background: #FFEBE6; color: #BF2600; }
+  .badge-gate { background: #EAE6FF; color: #403294; }
+
+  /* Info panel */
+  .info-panel {
+    background: #DEEBFF;
+    border-left: 3px solid #0052CC;
+    border-radius: 0 4px 4px 0;
+    padding: 12px 16px;
+    margin-bottom: 28px;
+    font-size: 13px;
+    color: #0747A6;
+    line-height: 1.5;
+  }
+  .info-panel strong { font-weight: 600; }
+
+  /* Section headings */
+  h2 {
+    font-size: 16px;
+    font-weight: 700;
+    color: #172B4D;
+    margin: 28px 0 12px;
+    padding-bottom: 6px;
+    border-bottom: 2px solid #DFE1E6;
+    letter-spacing: -0.2px;
+  }
+  h3 {
+    font-size: 13px;
+    font-weight: 700;
+    color: #172B4D;
+    margin: 18px 0 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+
+  /* Checklist table */
+  .checklist {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 8px;
+    font-size: 13px;
+  }
+  .checklist thead tr {
+    background: #F4F5F7;
+  }
+  .checklist th {
+    padding: 8px 12px;
+    text-align: left;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    color: #6B778C;
+    border-bottom: 2px solid #DFE1E6;
+    white-space: nowrap;
+  }
+  .checklist td {
+    padding: 9px 12px;
+    border-bottom: 1px solid #F4F5F7;
+    vertical-align: top;
+    line-height: 1.45;
+    color: #172B4D;
+  }
+  .checklist tr:last-child td { border-bottom: none; }
+  .checklist tr:hover td { background: #F4F5F7; }
+
+  .step-num {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    font-weight: 600;
+    color: #6B778C;
+    background: #F4F5F7;
+    border: 1px solid #DFE1E6;
+    border-radius: 3px;
+    padding: 1px 5px;
+    white-space: nowrap;
+  }
+
+  .req-name { font-weight: 600; color: #172B4D; }
+  .req-desc { font-size: 12px; color: #6B778C; margin-top: 2px; }
+
+  .owner-tag {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 500;
+    color: #0052CC;
+    background: #DEEBFF;
+    border-radius: 3px;
+    padding: 2px 7px;
+    white-space: nowrap;
+  }
+
+  /* Detail cards */
+  .cards-grid { display: flex; flex-direction: column; gap: 12px; margin-bottom: 8px; }
+
+  .card {
+    background: #fff;
+    border: 1px solid #DFE1E6;
+    border-radius: 4px;
+    overflow: hidden;
+  }
+  .card-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    background: #F4F5F7;
+    border-bottom: 1px solid #DFE1E6;
+    cursor: pointer;
+    user-select: none;
+  }
+  .card-num {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    font-weight: 700;
+    color: #0052CC;
+    background: #DEEBFF;
+    border-radius: 3px;
+    padding: 2px 6px;
+    flex-shrink: 0;
+  }
+  .card-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: #172B4D;
+    flex: 1;
+  }
+  .card-toggle {
+    font-size: 12px;
+    color: #6B778C;
+    transition: transform 0.2s;
+  }
+  .card.open .card-toggle { transform: rotate(180deg); }
+
+  .card-body {
+    padding: 14px 16px;
+    display: none;
+    font-size: 13px;
+    line-height: 1.6;
+    color: #172B4D;
+  }
+  .card.open .card-body { display: block; }
+
+  .card-body ul {
+    list-style: none;
+    padding: 0;
+    margin: 6px 0 10px;
+  }
+  .card-body ul li {
+    padding: 3px 0 3px 16px;
+    position: relative;
+    color: #172B4D;
+    font-size: 13px;
+  }
+  .card-body ul li::before {
+    content: '–';
+    position: absolute;
+    left: 0;
+    color: #0052CC;
+    font-weight: 700;
+  }
+
+  .card-note {
+    background: #FFFAE6;
+    border-left: 3px solid #FF991F;
+    border-radius: 0 3px 3px 0;
+    padding: 8px 12px;
+    font-size: 12px;
+    color: #7A4208;
+    margin-top: 10px;
+  }
+  .card-note strong { font-weight: 600; }
+
+  /* Links block */
+  .links-block {
+    background: #fff;
+    border: 1px solid #DFE1E6;
+    border-radius: 4px;
+    padding: 14px 16px;
+    margin-bottom: 8px;
+  }
+  .links-block h3 { margin-top: 0; margin-bottom: 10px; }
+  .link-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 7px 0;
+    border-bottom: 1px solid #F4F5F7;
+    font-size: 13px;
+  }
+  .link-row:last-child { border-bottom: none; }
+  .link-icon {
+    width: 22px;
+    height: 22px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+  .link-icon.fortify { background: #FFEBE6; color: #BF2600; }
+  .link-icon.sonatype { background: #E3FCEF; color: #006644; }
+  .link-icon.sonar { background: #EAE6FF; color: #403294; }
+  .link-label { font-weight: 600; color: #172B4D; flex: 1; }
+  .link-url {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: #0052CC;
+    text-decoration: none;
+    background: #F4F5F7;
+    padding: 2px 7px;
+    border-radius: 3px;
+  }
+  .link-url:hover { background: #DEEBFF; }
+
+  /* Sign-off table */
+  .signoff-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    margin-bottom: 8px;
+  }
+  .signoff-table th {
+    padding: 8px 12px;
+    background: #172B4D;
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    text-align: left;
+  }
+  .signoff-table td {
+    padding: 9px 12px;
+    border-bottom: 1px solid #DFE1E6;
+    color: #172B4D;
+    vertical-align: top;
+  }
+  .signoff-table tr:nth-child(even) td { background: #F4F5F7; }
+  .check-col {
+    width: 24px;
+    text-align: center;
+  }
+  .checkbox {
+    width: 16px;
+    height: 16px;
+    border: 2px solid #DFE1E6;
+    border-radius: 3px;
+    display: inline-block;
+    cursor: pointer;
+    position: relative;
+    transition: all 0.15s;
+  }
+  .checkbox.checked {
+    background: #0052CC;
+    border-color: #0052CC;
+  }
+  .checkbox.checked::after {
+    content: '';
+    position: absolute;
+    left: 3px; top: 0px;
+    width: 5px; height: 9px;
+    border: 2px solid #fff;
+    border-left: none;
+    border-top: none;
+    transform: rotate(45deg);
+  }
+  .progress-bar-wrap {
+    background: #F4F5F7;
+    border-radius: 3px;
+    height: 6px;
+    margin-top: 6px;
+    overflow: hidden;
+  }
+  .progress-bar-fill {
+    height: 100%;
+    background: #0052CC;
+    border-radius: 3px;
+    transition: width 0.3s;
+  }
+  .progress-label { font-size: 11px; color: #6B778C; margin-top: 4px; }
+
+  p { margin-bottom: 10px; font-size: 13px; line-height: 1.6; color: #172B4D; }
+
+  hr { border: none; border-top: 1px solid #DFE1E6; margin: 28px 0; }
+</style>
+</head>
+<body>
+
+<div class="conf-topbar">
+  <span class="conf-topbar-logo">⬡ Confluence</span>
+  <span class="conf-topbar-crumb">Engineering <span>›</span> Release Management <span>›</span> Release Process</span>
+</div>
+
+<div class="page-wrap">
+
+  <!-- Page Header -->
+  <div class="page-header">
+    <div class="page-label">Release Management</div>
+    <div class="page-title">Release Process — Pre-Release Checklist</div>
+    <div class="page-meta">
+      <span class="status-badge badge-active">● Active</span>
+      <div class="page-meta-dot"></div>
+      <span>Owner: Release Mgmt Office</span>
+      <div class="page-meta-dot"></div>
+      <span>v1.0 · March 2026</span>
+    </div>
+  </div>
+
+  <div class="info-panel">
+    <strong>All 6 gates must be completed before a production release is approved.</strong>
+    Missing any gate = release is blocked. Exceptions require CISO sign-off with a formal waiver.
+  </div>
+
+  <!-- ── Checklist Overview ── -->
+  <h2>Checklist Overview</h2>
+
+  <div id="progress-section">
+    <div class="progress-bar-wrap"><div class="progress-bar-fill" id="progressBar" style="width:0%"></div></div>
+    <div class="progress-label" id="progressLabel">0 of 6 complete</div>
+  </div>
+  <br>
+
+  <table class="checklist">
+    <thead>
+      <tr>
+        <th style="width:28px"></th>
+        <th style="width:36px">#</th>
+        <th>Requirement</th>
+        <th>Owner</th>
+        <th>Blocks Release?</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><div class="checkbox" onclick="toggleCheck(this)"></div></td>
+        <td><span class="step-num">01</span></td>
+        <td><div class="req-name">Change Request (CR)</div><div class="req-desc">Raised, approved, and CAB sign-off obtained in ITSM</div></td>
+        <td><span class="owner-tag">Release Manager</span></td>
+        <td><span class="status-badge badge-required">Yes</span></td>
+      </tr>
+      <tr>
+        <td><div class="checkbox" onclick="toggleCheck(this)"></div></td>
+        <td><span class="step-num">02</span></td>
+        <td><div class="req-name">Cyber Risk Management (CRM) Approval</div><div class="req-desc">Security assessment complete; CISO/Security Lead sign-off</div></td>
+        <td><span class="owner-tag">CISO Office</span></td>
+        <td><span class="status-badge badge-required">Yes</span></td>
+      </tr>
+      <tr>
+        <td><div class="checkbox" onclick="toggleCheck(this)"></div></td>
+        <td><span class="step-num">03</span></td>
+        <td><div class="req-name">Archer Risk Request</div><div class="req-desc">GRC record raised, risks documented, Risk Manager approved</div></td>
+        <td><span class="owner-tag">Risk & Compliance</span></td>
+        <td><span class="status-badge badge-required">Yes</span></td>
+      </tr>
+      <tr>
+        <td><div class="checkbox" onclick="toggleCheck(this)"></div></td>
+        <td><span class="step-num">04</span></td>
+        <td><div class="req-name">Penetration Test</div><div class="req-desc">Full pen test on staging; High/Critical findings remediated or risk-accepted</div></td>
+        <td><span class="owner-tag">Security Engineering</span></td>
+        <td><span class="status-badge badge-required">Yes</span></td>
+      </tr>
+      <tr>
+        <td><div class="checkbox" onclick="toggleCheck(this)"></div></td>
+        <td><span class="step-num">05</span></td>
+        <td><div class="req-name">Fortify SAST Scan</div><div class="req-desc">Full codebase scan; zero Critical issues; High issues remediated or accepted</div></td>
+        <td><span class="owner-tag">AppSec / Dev Lead</span></td>
+        <td><span class="status-badge badge-required">Yes</span></td>
+      </tr>
+      <tr>
+        <td><div class="checkbox" onclick="toggleCheck(this)"></div></td>
+        <td><span class="step-num">06</span></td>
+        <td><div class="req-name">MAST / SAST / DAST Scans</div><div class="req-desc">All three scan types completed; reports attached to release package</div></td>
+        <td><span class="owner-tag">AppSec / Dev Lead</span></td>
+        <td><span class="status-badge badge-required">Yes</span></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <!-- ── Details ── -->
+  <h2>Details</h2>
+  <div class="cards-grid">
+
+    <div class="card open">
+      <div class="card-header" onclick="toggleCard(this)">
+        <span class="card-num">01</span>
+        <span class="card-title">Change Request (CR)</span>
+        <span class="card-toggle">▼</span>
+      </div>
+      <div class="card-body">
+        <p>Raise in your ITSM tool (ServiceNow / Jira SM) <strong>at least 5 business days</strong> before release.</p>
+        <ul>
+          <li>Include: version, deployment window, impact assessment, rollback plan</li>
+          <li>Change type: Standard / Normal / Emergency</li>
+          <li>CAB approval required for Normal and Emergency changes</li>
+          <li>Post-deploy: update CR to <em>Implemented</em> and capture PIR</li>
+        </ul>
+        <div class="card-note"><strong>Done when:</strong> CR status = APPROVED in ITSM with CAB sign-off recorded.</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header" onclick="toggleCard(this)">
+        <span class="card-num">02</span>
+        <span class="card-title">Cyber Risk Management (CRM) Approval</span>
+        <span class="card-toggle">▼</span>
+      </div>
+      <div class="card-body">
+        <p>Security team reviews residual risk and validates controls are sufficient.</p>
+        <ul>
+          <li>Submit: security questionnaire, threat model / DFDs, dependency inventory</li>
+          <li>Covers: auth controls, TLS, secrets management (Key Vault), tenant isolation, SIEM coverage</li>
+          <li>All Critical/High vulns must be remediated or formally risk-accepted with expiry date</li>
+        </ul>
+        <div class="card-note"><strong>Done when:</strong> Formal CRM approval email/ticket received from CISO office.</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header" onclick="toggleCard(this)">
+        <span class="card-num">03</span>
+        <span class="card-title">Archer Risk Request</span>
+        <span class="card-toggle">▼</span>
+      </div>
+      <div class="card-body">
+        <p>Raise an IT Risk record in the Archer GRC portal, linked to the CR.</p>
+        <ul>
+          <li>Document identified risks with likelihood/impact ratings</li>
+          <li>Map to control library; assign risk treatment: Mitigate / Accept / Transfer</li>
+          <li>Attach evidence: scan reports, CRM approval, pen test certificate</li>
+          <li>Retain Archer Record ID for release package</li>
+        </ul>
+        <div class="card-note"><strong>Done when:</strong> Archer record = Approved/Closed. Record ID in release docs.</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header" onclick="toggleCard(this)">
+        <span class="card-num">04</span>
+        <span class="card-title">Penetration Test</span>
+        <span class="card-toggle">▼</span>
+      </div>
+      <div class="card-body">
+        <p>Conducted by internal security team or approved third-party on the <strong>staging environment</strong>.</p>
+        <ul>
+          <li>Scope: all new/modified API endpoints, auth flows, tenant isolation boundaries</li>
+          <li>Methodology: OWASP Testing Guide v4 + OWASP API Security Top 10</li>
+          <li>Retest required for all High/Critical findings before sign-off</li>
+          <li>Deliverable: executive summary + detailed findings report + retest report</li>
+        </ul>
+        <div class="card-note"><strong>Done when:</strong> Final pen test report issued; all Critical/High findings closed or risk-accepted.</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header" onclick="toggleCard(this)">
+        <span class="card-num">05</span>
+        <span class="card-title">Fortify SAST Scan</span>
+        <span class="card-toggle">▼</span>
+      </div>
+      <div class="card-body">
+        <p>Runs via CI pipeline (GitHub Actions / Harness). Results uploaded to Fortify SSC.</p>
+        <ul>
+          <li><strong>Critical</strong> — must remediate before release. Blocks.</li>
+          <li><strong>High</strong> — remediate or obtain CRM risk acceptance. Blocks unless accepted.</li>
+          <li><strong>Medium / Low</strong> — track in backlog. Does not block.</li>
+          <li>False positive suppression requires AppSec team review</li>
+        </ul>
+        <div class="card-note"><strong>Done when:</strong> Zero Criticals; all Highs resolved or accepted; scan report in release package.</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header" onclick="toggleCard(this)">
+        <span class="card-num">06</span>
+        <span class="card-title">MAST / SAST / DAST Scans</span>
+        <span class="card-toggle">▼</span>
+      </div>
+      <div class="card-body">
+        <p style="margin-bottom:4px"><strong>SAST</strong> (SonarQube / Checkmarx) — CI gate on every PR to release branch. Quality gate must pass; security hotspots triaged with AppSec.</p>
+        <p style="margin-bottom:4px"><strong>DAST</strong> (OWASP ZAP / Burp Suite) — Against staging. Covers all authenticated + unauthenticated routes. Run within 5 business days of release date.</p>
+        <p style="margin-bottom:8px"><strong>MAST</strong> (MobSF / Checkmarx MAST) — Required only if release includes mobile (iOS/Android). If no mobile component, mark N/A with justification in CR.</p>
+        <div class="card-note"><strong>Done when:</strong> All applicable scans complete; no unaddressed Critical/High; reports attached; AppSec sign-off obtained.</div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ── Scan Links ── -->
+  <h2>Tool Links</h2>
+  <div class="links-block">
+    <div class="link-row">
+      <div class="link-icon fortify">F</div>
+      <span class="link-label">Fortify Software Security Center (SSC)</span>
+      <a class="link-url" href="https://fortify.your-org.com/ssc" target="_blank">fortify.your-org.com/ssc</a>
+    </div>
+    <div class="link-row">
+      <div class="link-icon fortify">F</div>
+      <span class="link-label">Fortify CI Integration Guide</span>
+      <a class="link-url" href="https://your-org.github.io/fortify-integration" target="_blank">GitHub · fortify-integration</a>
+    </div>
+    <div class="link-row">
+      <div class="link-icon sonatype">S</div>
+      <span class="link-label">Sonatype Nexus IQ — Component Analysis</span>
+      <a class="link-url" href="https://sonatype.your-org.com/nexus-iq" target="_blank">sonatype.your-org.com/nexus-iq</a>
+    </div>
+    <div class="link-row">
+      <div class="link-icon sonatype">S</div>
+      <span class="link-label">Sonatype Lifecycle Dashboard</span>
+      <a class="link-url" href="https://sonatype.your-org.com/lifecycle" target="_blank">sonatype.your-org.com/lifecycle</a>
+    </div>
+    <div class="link-row">
+      <div class="link-icon sonar">SQ</div>
+      <span class="link-label">SonarQube Dashboard</span>
+      <a class="link-url" href="https://sonarqube.your-org.com" target="_blank">sonarqube.your-org.com</a>
+    </div>
+    <div class="link-row">
+      <div class="link-icon sonar">SQ</div>
+      <span class="link-label">SonarQube Quality Gate Policy</span>
+      <a class="link-url" href="https://sonarqube.your-org.com/quality_gates" target="_blank">sonarqube.your-org.com/quality_gates</a>
+    </div>
+  </div>
+
+  <!-- ── Release Gate Sign-Off ── -->
+  <h2>Release Gate Sign-Off</h2>
+
+  <table class="signoff-table">
+    <thead>
+      <tr>
+        <th class="check-col">✓</th>
+        <th>Requirement</th>
+        <th>Approver</th>
+        <th>Evidence / Ref #</th>
+        <th>Date</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr><td class="check-col"><div class="checkbox" onclick="toggleCheck(this)"></div></td><td>Change Request (CR)</td><td>Release Manager</td><td><span style="font-family:monospace;font-size:12px;color:#6B778C">CR-XXXX</span></td><td style="color:#6B778C;font-size:12px">___________</td></tr>
+      <tr><td class="check-col"><div class="checkbox" onclick="toggleCheck(this)"></div></td><td>CRM Approval</td><td>CISO / Security Lead</td><td><span style="font-family:monospace;font-size:12px;color:#6B778C">CRM-XXXX</span></td><td style="color:#6B778C;font-size:12px">___________</td></tr>
+      <tr><td class="check-col"><div class="checkbox" onclick="toggleCheck(this)"></div></td><td>Archer Risk Request</td><td>Risk Manager</td><td><span style="font-family:monospace;font-size:12px;color:#6B778C">ARCHER-XXXX</span></td><td style="color:#6B778C;font-size:12px">___________</td></tr>
+      <tr><td class="check-col"><div class="checkbox" onclick="toggleCheck(this)"></div></td><td>Penetration Test</td><td>Security Engineering</td><td><span style="font-family:monospace;font-size:12px;color:#6B778C">Pen test report</span></td><td style="color:#6B778C;font-size:12px">___________</td></tr>
+      <tr><td class="check-col"><div class="checkbox" onclick="toggleCheck(this)"></div></td><td>Fortify SAST Scan</td><td>AppSec / Dev Lead</td><td><span style="font-family:monospace;font-size:12px;color:#6B778C">SSC project link</span></td><td style="color:#6B778C;font-size:12px">___________</td></tr>
+      <tr><td class="check-col"><div class="checkbox" onclick="toggleCheck(this)"></div></td><td>MAST / SAST / DAST</td><td>AppSec / Dev Lead</td><td><span style="font-family:monospace;font-size:12px;color:#6B778C">Scan reports</span></td><td style="color:#6B778C;font-size:12px">___________</td></tr>
+    </tbody>
+  </table>
+
+  <p style="color:#6B778C;font-size:12px;margin-top:12px">
+    <strong style="color:#172B4D">Release Manager:</strong> &nbsp;_____________________________ &nbsp;&nbsp;
+    <strong style="color:#172B4D">Date:</strong> &nbsp;_______________
+  </p>
+
+</div>
+
+<script>
+  function toggleCheck(el) {
+    el.classList.toggle('checked');
+    updateProgress();
+  }
+  function toggleCard(header) {
+    header.parentElement.classList.toggle('open');
+  }
+  function updateProgress() {
+    const all = document.querySelectorAll('.checklist .checkbox');
+    const done = document.querySelectorAll('.checklist .checkbox.checked').length;
+    const pct = Math.round((done / all.length) * 100);
+    document.getElementById('progressBar').style.width = pct + '%';
+    document.getElementById('progressLabel').textContent = done + ' of ' + all.length + ' complete';
+  }
+</script>
+</body>
+</html>
