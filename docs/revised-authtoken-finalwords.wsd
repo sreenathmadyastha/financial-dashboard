@@ -1,0 +1,108 @@
+@startuml
+title Small Business Merchant (SMB) → Insights — Fiserv SSO, Signed Assertions, Exchange, Summary API, Renewal
+
+autonumber
+
+actor User
+participant "Small Business Merchant (SMB)\n(holds SMB private key)" as SMB
+participant "Fiserv SSO" as SSO
+participant "Apigee" as Apigee
+participant "/token/generate\n(central token issuer)" as TokenGen
+participant "Ping Identity\n(JWKS + introspection source)" as Ping
+participant "Insights App\n(frontend)" as Insights
+participant "Insights Auth\n/auth/exchange, /auth/refresh\n(holds Insights private key)" as InsightsAuth
+participant "Insights Summary API" as API
+database  "Enterprise Cache" as Cache
+participant "auth.fiapps.com\n/as/introspect.auth2" as Introspect
+
+== Step 0 — User authenticates via Fiserv SSO ==
+User -> SMB : Access SMB App
+SMB  -> SSO : Redirect to Fiserv SSO
+SSO  -> User : Login prompt
+User -> SSO : Credentials
+SSO  --> SMB : SSO token / session established
+
+User -> SMB : Click "Insights" link
+
+== Step 1 — SMB mints handoff token ==
+SMB    -> SMB     : Sign client assertion\nwith SMB private key\n(claims: sponsor, subscriber, businessUser)
+SMB    -> Apigee  : POST /token/generate\nBearer <smb_signed_assertion>
+Apigee -> Ping    : Fetch JWKS
+Ping   --> Apigee : Public keys
+Apigee -> Apigee  : Verify assertion signature & exp
+Apigee -> TokenGen : forward
+TokenGen -> TokenGen : Validate assertion,\nissue signed handoff_token
+TokenGen --> Apigee  : handoff_token (signed JWT)
+Apigee   --> SMB     : handoff_token
+
+SMB -> Insights : Browser redirect with handoff_token
+
+== Step 2 — Exchange handoff → api_access_token ==
+Insights -> Apigee       : POST /auth/exchange\nBearer <handoff_token>
+Apigee   -> Apigee       : Verify sig & exp (cached JWKS)
+Apigee   -> InsightsAuth : forward
+
+InsightsAuth -> Cache : Lookup handoff_token
+alt Cache hit
+    Cache --> InsightsAuth : active + claims
+else Cache miss
+    InsightsAuth -> Introspect : POST https://auth.fiapps.com/as/introspect.auth2
+    Introspect --> InsightsAuth : { active, claims }
+    InsightsAuth -> Cache : Store (TTL)
+end
+
+InsightsAuth -> InsightsAuth : Sign client assertion\nwith Insights private key
+InsightsAuth -> Apigee       : POST /token/generate\nBearer <insights_signed_assertion>
+Apigee       -> Apigee       : Verify assertion signature & exp
+Apigee       -> TokenGen     : forward
+TokenGen     --> Apigee      : api_access_token (signed JWT, exp: 10 min)
+Apigee       --> InsightsAuth : api_access_token
+InsightsAuth --> Apigee      : { api_access_token }
+Apigee       --> Insights    : { api_access_token }
+
+== Step 3 — Call Insights Summary API ==
+Insights -> Apigee : GET /insights-summary\nBearer <api_access_token>
+Apigee   -> Apigee : Verify sig & exp
+Apigee   -> API    : forward
+
+API -> Cache : Lookup api_access_token
+alt Cache hit
+    Cache --> API : active + claims
+else Cache miss
+    API -> Introspect : POST https://auth.fiapps.com/as/introspect.auth2
+    Introspect --> API : { active, claims }
+    API -> Cache : Store (TTL)
+end
+
+API    --> Apigee   : 200 OK
+Apigee --> Insights : 200 OK
+
+== Step 4 — Renew before expiry ==
+note over Insights
+  UI must call /auth/refresh before 10-min expiry.
+  No refresh token — current access token is the credential.
+end note
+
+Insights -> Apigee       : POST /auth/refresh\nBearer <current api_access_token>
+Apigee   -> Apigee       : Verify sig & exp
+Apigee   -> InsightsAuth : forward
+
+InsightsAuth -> Cache : Lookup api_access_token
+alt Cache hit
+    Cache --> InsightsAuth : active + claims
+else Cache miss
+    InsightsAuth -> Introspect : POST https://auth.fiapps.com/as/introspect.auth2
+    Introspect --> InsightsAuth : { active, claims }
+    InsightsAuth -> Cache : Store (TTL)
+end
+
+InsightsAuth -> InsightsAuth : Sign client assertion\nwith Insights private key
+InsightsAuth -> Apigee       : POST /token/generate\nBearer <insights_signed_assertion>
+Apigee       -> Apigee       : Verify assertion signature & exp
+Apigee       -> TokenGen     : forward
+TokenGen     --> Apigee      : new api_access_token (exp: 10 min)
+Apigee       --> InsightsAuth : new api_access_token
+InsightsAuth --> Apigee      : { api_access_token }
+Apigee       --> Insights    : { api_access_token }
+
+@enduml
