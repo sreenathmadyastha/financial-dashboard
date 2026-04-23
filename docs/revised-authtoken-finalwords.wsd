@@ -1,12 +1,12 @@
 @startuml
-title Small Business Merchant (SMB) → Insights — Fiserv SSO, Signed Assertions, Exchange, Summary API, Renewal
+title SMB → Insights — Unified SSO, Signed Assertions, Exchange, Summary API, Renewal
 
 autonumber
 
 actor User
 participant "Small Business Merchant (SMB)\n(holds SMB private key)" as SMB
-participant "Fiserv SSO" as SSO
 participant "Apigee" as Apigee
+participant "Unified SSO Service\napi/v1/token/introspect\napi/v1/entitlements/validate" as USSO
 participant "/token/generate\n(central token issuer)" as TokenGen
 participant "Ping Identity\n(JWKS + introspection source)" as Ping
 participant "Insights App\n(frontend)" as Insights
@@ -15,14 +15,18 @@ participant "Insights Summary API" as API
 database  "Enterprise Cache" as Cache
 participant "auth.fiapps.com\n/as/introspect.auth2" as Introspect
 
-== Step 0 — User authenticates via Fiserv SSO ==
-User -> SMB : Access SMB App
-SMB  -> SSO : Redirect to Fiserv SSO
-SSO  -> User : Login prompt
-User -> SSO : Credentials
-SSO  --> SMB : SSO token / session established
-
 User -> SMB : Click "Insights" link
+
+== Step 0 — Silent SSO: Introspect + Entitlements (via Apigee) ==
+SMB    -> Apigee : POST /api/v1/token/introspect\n{ user session token }
+Apigee -> USSO   : forward
+USSO   --> Apigee : { active: true, identity claims }
+Apigee --> SMB    : token valid
+
+SMB    -> Apigee : POST /api/v1/entitlements/validate\n{ user, resource: "Insights" }
+Apigee -> USSO   : forward
+USSO   --> Apigee : { entitled: true }
+Apigee --> SMB    : user entitled to Insights
 
 == Step 1 — SMB mints handoff token ==
 SMB    -> SMB     : Sign client assertion\nwith SMB private key\n(claims: sponsor, subscriber, businessUser)
