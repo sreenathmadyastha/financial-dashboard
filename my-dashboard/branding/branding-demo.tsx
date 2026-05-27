@@ -127,14 +127,14 @@ const DEFAULT_THEME: BrandingConfig = {
 //    Replace mockFetchAppConfig with real fetch("/api/config")
 // ============================================================
 const MOCK_SPONSORS: Record<string, BrandingConfig> = {
-  fiserv: {
+  omp: {
     generalSettings: { minPaymentAmountUsd: 1, maxPaymentAmountUsd: 999999.99 },
     theme: {
       logos: {
-        dark: "https://platform-static.meliopayments.com/assets/fiserv/FiservLogoDark.svg",
-        light: "https://platform-static.meliopayments.com/assets/fiserv/FiservLogo.svg",
+        dark: "https://platform-static.meliopayments.com/assets/omp/ompLogoDark.svg",
+        light: "https://platform-static.meliopayments.com/assets/omp/ompLogo.svg",
       },
-      fonts: { primary: '"Univers For Fiserv", Roboto, Arial, sans-serif' },
+      fonts: { primary: '"Univers For omp", Roboto, Arial, sans-serif' },
       colors: {
         global: {
           critical: {
@@ -175,7 +175,7 @@ const MOCK_SPONSORS: Record<string, BrandingConfig> = {
         },
       },
     },
-    partnerName: "fiserv_testbank-claritypr1234511",
+    partnerName: "omp_testbank-claritypr1234511",
     id: "af9793f5-648b-4bcd-b55d-8c634c0a6eec",
   },
   acmebank: {
@@ -237,8 +237,8 @@ function mockFetchAppConfig(sponsorId: string): Promise<AppConfig> {
       }
       const branding: BrandingConfig | null = MOCK_SPONSORS[sponsorId] ?? null;
       resolve({
-        apiBaseUrl: "https://api.insights.fiserv.com",
-        cdnUrl: "https://cdn.insights.fiserv.com",
+        apiBaseUrl: "https://api.insights.omp.com",
+        cdnUrl: "https://cdn.insights.omp.com",
         branding,
       });
     }, 800);
@@ -573,7 +573,7 @@ interface SponsorOption {
 }
 
 const SPONSOR_OPTIONS: SponsorOption[] = [
-  { id: "fiserv", label: "Fiserv (API branding)" },
+  { id: "omp", label: "omp (API branding)" },
   { id: "acmebank", label: "Acme Bank (API branding)" },
   { id: "unknown", label: "Unknown Sponsor (fallback to defaults)" },
   { id: "error", label: "API Error (fallback to defaults)" },
@@ -581,7 +581,7 @@ const SPONSOR_OPTIONS: SponsorOption[] = [
 ];
 
 export default function App(): JSX.Element {
-  const [sponsorId, setSponsorId] = useState<string>("fiserv");
+  const [sponsorId, setSponsorId] = useState<string>("omp");
 
   return (
     <BrandingProvider sponsorId={sponsorId}>

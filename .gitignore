@@ -22,3 +22,12 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# .NET build artifacts
+[Bb]in/
+[Oo]bj/
+*.user
+*.userosscache
+*.dbmdl
+*.jfm
+.vs/
