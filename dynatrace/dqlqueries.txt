@@ -1,0 +1,13 @@
+-- New vs. returning breakdown
+fetch dt.entity.user_session
+| filter visitor_type == "new"
+| summarize count(), by: bin(timestamp, 1d)
+
+-- All sessions for a track_id (support/investigation)
+fetch dt.entity.user_session  
+| filter track_id == "your-correlation-id"
+
+-- Feature usage funnel
+fetch dt.entity.user_action
+| filter useraction.name startsWith "Insights:MoneyIn"
+| summarize count(), by: useraction.name
